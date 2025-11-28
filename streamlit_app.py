@@ -367,9 +367,17 @@ async def initialize_agents():
             model_client=st.session_state.model_client,
             system_message="""
             You are a photo analysis agent. When you receive confirmation that an image has been uploaded, respond with:
-            "It is a CO2 corrosion.
+            "Preliminary Assessment Based on Image
 
-            This aligns with pitting corrosion, which matches the behavior described in: API 571 - Page-93/Page-94/Page-95/Page-96/Page-97
+            - Presence of iron carbonate (FeCO₃) scale deposits
+            - Localized grooving or channeling along flow direction (flow-assisted sweet corrosion)
+            - Uniform or mesa-type attack in areas with unstable FeCO₃ film
+            
+
+            This aligns with CO2 corrosion, which matches the behavior described in:
+
+            - API 571 – Damage Mechanisms (Section: CO2 corrosion)
+            - Reference: https://www.api.org/products-and-services/standards
 
             To confirm the mechanism, I'll need chemistry and process data for the last 3–6 months:
 
@@ -405,7 +413,9 @@ async def initialize_agents():
 - Nitrogen blanketing offline
 - Reduced scavenger dose after restart
 
-            This aligns with the contributors to localized corrosion after maintenance—specifically those related to oxygen ingress—as documented in API 571 (pages 93–97)."
+            This aligns with the contributors to localized corrosion after maintenance—specifically those related to oxygen ingress—as documented in API 571 (pages 93–97).
+            - Reference: https://www.api.org/products-and-services/standards
+            "
 
             6. Finally ask: "Do you need the mitigation or prevention steps for the above problem?"
             """
@@ -423,7 +433,9 @@ async def initialize_agents():
             2. Randomly select the top 2 mitigation methods.
             3. Return these top 2 methods to the user.
             4. Do not mention randomly word or top 2.
-            5. Finally ask: "Do you need the location of the pump in 3D plant model?"
+            5. Add these references - "This aligns with the contributors to localized corrosion after maintenance—specifically those related to oxygen ingress—as documented in API 571 (pages 93–97).
+            - Reference: https://www.api.org/products-and-services/standards
+            6. Finally ask: "Do you need the location of the pump in 3D plant model?"
             """
         )
 
@@ -503,57 +515,94 @@ Whenever you're ready, tell me what you found in the field."""
                 "image": uploaded_file
             })
 
-            response = asyncio.run(get_agent_response(
-                st.session_state.photo_agent,
-                "User has uploaded an image of corrosion."
-            ))
+            with st.chat_message("user"):
+                st.markdown("Here is the photo of the corroded area:")
+                st.image(uploaded_file, width=300)
 
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.session_state.conversation_stage = "awaiting_chemistry_data"
+            with st.spinner("Analyzing photo and identifying corrosion patterns..."):
+                response = asyncio.run(get_agent_response(
+                    st.session_state.photo_agent,
+                    "User has uploaded an image of corrosion."
+                ))
+
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.session_state.conversation_stage = "awaiting_chemistry_data"
+
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+
             st.rerun()
 
     if prompt := st.chat_input("Type your message here..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
 
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
         if st.session_state.conversation_stage == "initial":
-            response = asyncio.run(get_agent_response(st.session_state.asset_agent, prompt))
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.session_state.asset_number = prompt
-            st.session_state.conversation_stage = "awaiting_photo"
+            with st.spinner("Fetching asset details from EAM, please allow me a minute..."):
+                response = asyncio.run(get_agent_response(st.session_state.asset_agent, prompt))
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.session_state.asset_number = prompt
+                st.session_state.conversation_stage = "awaiting_photo"
+
+                with st.chat_message("assistant"):
+                    st.markdown(response)
 
         elif st.session_state.conversation_stage == "awaiting_chemistry_data":
-            response = asyncio.run(get_agent_response(st.session_state.solution_agent, prompt))
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.session_state.conversation_stage = "awaiting_mitigation_request"
+            with st.spinner("Analyzing chemistry data and correlating with damage mechanisms..."):
+                response = asyncio.run(get_agent_response(st.session_state.solution_agent, prompt))
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.session_state.conversation_stage = "awaiting_mitigation_request"
+
+                with st.chat_message("assistant"):
+                    st.markdown(response)
 
         elif st.session_state.conversation_stage == "awaiting_mitigation_request":
             if "yes" in prompt.lower() or "sure" in prompt.lower():
-                response = asyncio.run(get_agent_response(
-                    st.session_state.mitigation_agent,
-                    "Please provide mitigation steps."
-                ))
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                st.session_state.conversation_stage = "awaiting_3d_model_request"
+                with st.spinner("Retrieving mitigation strategies from API 571 and industry standards..."):
+                    response = asyncio.run(get_agent_response(
+                        st.session_state.mitigation_agent,
+                        "Please provide mitigation steps."
+                    ))
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.session_state.conversation_stage = "awaiting_3d_model_request"
+
+                    with st.chat_message("assistant"):
+                        st.markdown(response)
             else:
+                response_content = "Understood. Let me know if you need anything else!"
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": "Understood. Let me know if you need anything else!"
+                    "content": response_content
                 })
+
+                with st.chat_message("assistant"):
+                    st.markdown(response_content)
 
         elif st.session_state.conversation_stage == "awaiting_3d_model_request":
             if "yes" in prompt.lower() or "sure" in prompt.lower():
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": "Here is the location of the pump in 3D model"
-                })
-                st.session_state.show_video = True
-                st.session_state.conversation_stage = "completed"
+                with st.spinner("Loading 3D plant model and locating asset..."):
+                    response_content = "Here is the location of the pump in 3D model"
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": response_content
+                    })
+                    st.session_state.show_video = True
+                    st.session_state.conversation_stage = "completed"
+
+                    with st.chat_message("assistant"):
+                        st.markdown(response_content)
             else:
+                response_content = "Understood. The analysis is complete. Let me know if you need anything else!"
                 st.session_state.messages.append({
                     "role": "assistant",
-                    "content": "Understood. The analysis is complete. Let me know if you need anything else!"
+                    "content": response_content
                 })
                 st.session_state.conversation_stage = "completed"
+
+                with st.chat_message("assistant"):
+                    st.markdown(response_content)
 
         st.rerun()
 
