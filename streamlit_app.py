@@ -440,7 +440,7 @@ async def get_agent_response(agent, message):
         return f"Error: {str(e)}"
 
 def display_video():
-    video_path = Path("C:\\Users\\User\\Desktop\\Asset Integrity\\Plant_3D.mp4")
+    video_path = Path("Plant_3D.mp4")
 
     if video_path.exists():
         st.video(str(video_path))
